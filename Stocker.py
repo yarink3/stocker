@@ -11,16 +11,8 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import threading
 
-# global currentPrice
-# global stockNameEntry
-# global line1
-# global line2
-# global limitAsker
-# global b3
-# global userName
-# global userMail
 # global logged_in
-# global master
+# global registerButton
 
 scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
 credentials = ServiceAccountCredentials.from_json_keyfile_name('stockgetter-02bc755504f9.json', scope)
@@ -62,7 +54,7 @@ def create_pop_window(title, message, size, button1_text, button2_text, button2_
     b1.pack()
 
 
-def send_confirmation_code(randomForConfirmaionMail):
+def send_confirmation_code(userMail,randomForConfirmaionMail):
     """A function used for send confirmation mail to the user un order to verify her/his email address.
 	pop ups an error window if failed to send the mail.
 	Parameters
@@ -71,7 +63,7 @@ def send_confirmation_code(randomForConfirmaionMail):
 
     """
     print(randomForConfirmaionMail)
-    userMail = userMailEntry.get()
+    # userMail = userMailEntry.get()
     if ('@' not in userMail):
         create_pop_window('Error: wrong email', "You didn't entered a valid email\n", '330x120', 'Try again', "", "")
 
@@ -98,23 +90,26 @@ def send_confirmation_code(randomForConfirmaionMail):
                               '530x200', 'ok', "", "")
 
 
-def RegistrationSelected():
-    """A function used for before sign up the user,after "register" button was selected,
-	shows more entries needed to be fiil by the user in order to register """
-    codeLabel.grid(row=4, column=0)
-    repeatPasswordLabel.grid(row=3, column=0)
-    emailLabel.grid(row=1, column=0)
-    userMailEntry.grid(row=1, column=1)
-    sendCodeButton.grid(row=1, column=2)
-    reapetPasswordEntry.grid(row=3, column=1)
-    confirmationCode.grid(row=4, column=1)
-    registerButton.config(text="Register")
-    logRegWindow.geometry('470x250')
-    registerButton.config(font=("David", 16, "bold"))
-    registerButton.config(command=lambda: register(randomForConfirmaionMail))
+
+def RegistrationSelected(logRegWindow,userNameEntry,passwordEntry):
+	"""A function used for before sign up the user,after "register" button was selected,
+	shows more entries needed to be fiil by the user in order to register 
+	"""
+	emailLabel = Label(logRegWindow, text='EMAIL: ', font=labelFont)
+	repeatPasswordLabel = Label(logRegWindow, text='Reapet password: ', font=labelFont)
+	userMailEntry = Entry(logRegWindow, width=28)
+	reapetPasswordEntry = Entry(logRegWindow, show="*", width=28)
+	emailLabel.grid(row=1, column=0)
+	userMailEntry.grid(row=1, column=1)
+	repeatPasswordLabel.grid(row=3, column=0)
+	reapetPasswordEntry.grid(row=3, column=1)
+	registerButton.config(text="Register")
+	logRegWindow.geometry('470x250')
+	registerButton.config(font=("David", 16, "bold"))
+	registerButton.config(command=lambda:[try_register(logRegWindow, userNameEntry,userMailEntry,passwordEntry,reapetPasswordEntry)]) 
 
 
-def register(randomForConfirmaionMail):
+def try_register(logRegWindow,userNameEntry,userMailEntry,passwordEntry,reapetPasswordEntry):
     """A function used to sign up the user, checks all the fields are ok(same password, etc.)
 	and add the user to the users table on the database. Pop ups an error massege if failed
 	Parameters
@@ -122,17 +117,24 @@ def register(randomForConfirmaionMail):
 	randomForConfirmaionMail: the random confirmation code (betwwen 0-100000),
 	used to verify the users mail (check if the typed code equals the randomly generated one).
     """
+
+
+    randomForConfirmaionMail = int((random.random()) * 1000000)
+
+
     mailOk = 1
     nameOk = 1
     user_name_to_check = userNameEntry.get()
+    user_mail_to_check = userMailEntry.get()
+
     password_to_check = passwordEntry.get()
     repeat_password_to_check = reapetPasswordEntry.get()
-    user_mail_to_check = userMailEntry.get()
-    user_confirmation_code = confirmationCode.get()
     print(randomForConfirmaionMail)
+
 
     can_register = 1
     errorMsg = "Somthing went wrong:"
+    mistake_counter=0
 
     list_of_cells_with_same_username = usersSheet.findall(user_name_to_check)
     for cell in list_of_cells_with_same_username:
@@ -143,6 +145,7 @@ def register(randomForConfirmaionMail):
     if (nameOk == 0):
         can_register = 0
         errorMsg = errorMsg + "\nUser name already taken"
+        mistake_counter=mistake_counter+1
 
     list_of_cells_with_same_mail = usersSheet.findall(user_mail_to_check)
     for cell in list_of_cells_with_same_mail:
@@ -153,25 +156,41 @@ def register(randomForConfirmaionMail):
     if (mailOk == 0):
         can_register = 0
         errorMsg = errorMsg + "\nThis mail already registrered to our service."
+        mistake_counter=mistake_counter+1
 
-    if (user_confirmation_code != str(randomForConfirmaionMail)):
-        can_register = 0
-        errorMsg = errorMsg + "\nWrong confirmation code, check your mail."
 
     if (repeat_password_to_check != password_to_check):
         can_register = 0
         errorMsg = errorMsg + "\nPasswords does not match."
+        mistake_counter=mistake_counter+1
+
     if (len(password_to_check) <= 3):
         can_register = 0
         errorMsg = errorMsg + "\nPasswords size should be at least 4 ."
+        mistake_counter=mistake_counter+1
 
     if (can_register == 0):
-        create_pop_window('Registration Error', errorMsg, '530x200', "Try again", "", "")
+        create_pop_window('Registration Error', errorMsg, '530x'+str(50+(mistake_counter+1)*40), "Try again", "", "")
 
 
     else:
+    	codeLabel = Label(logRegWindow, text='Confirmation code: ', font=labelFont)
+    	confirmationCodeEntry = Entry(logRegWindow, width=28)
+
+    	codeLabel.grid(row=4, column=0)
+    	confirmationCodeEntry.grid(row=4, column=1)
+    	send_confirmation_code(user_mail_to_check,randomForConfirmaionMail)
+    	# global registerButton
+    	registerButton.config(command=lambda: add_user_to_db( user_name_to_check, user_mail_to_check, password_to_check,str(confirmationCodeEntry.get()),str(randomForConfirmaionMail)))
+    	registerButton.config(text="Confirm")
+
+def add_user_to_db( user_name_to_check, user_mail_to_check, password_to_check,user_confirmation_code,randomForConfirmaionMail_str):
+    if (user_confirmation_code != randomForConfirmaionMail_str):
+        
+        create_pop_window('Registration Error', "Wrong confirmation code, check your mail.\n", '370x110', "Try again", "", "")
+    else:
         usersSheet.append_row([user_name_to_check, user_mail_to_check, password_to_check])
-        create_pop_window('Welcome aboard!', "Register successfully !", '360x120', "Close", 'Login', login)
+        create_pop_window('Welcome aboard!', "Register successfully !", '360x120', "Close", 'Login', lambda: login(user_name_to_check,password_to_check))
 
 
 def delete_selected_stocks(listbox,userMail):
@@ -320,14 +339,14 @@ def login(user_name_to_check,password_to_check):
 
     if (nameOk == 0):
         can_login = 0
-        errorMsg = errorMsg + "Something Went wrong, check username and password - 1 "
+        errorMsg = errorMsg + "Something Went wrong, check username and password"
     if nameOk == 1 and str(password_to_check) != str(usersSheet.cell(usersSheet.find(user_name_to_check).row,
                                                                      usersSheet.find(
                                                                              user_name_to_check).col + 2).value):
         can_login = 0
-        errorMsg = errorMsg + "Something Went wrong, check username and password - 2 "
+        errorMsg = errorMsg + "Something Went wrong, check username and password"
     if (can_login == 0):
-        create_pop_window("Login Error", errorMsg, '440x120', "Try again", "", "")
+        create_pop_window("Login Error", errorMsg, '520x80', "Try again", "", "")
 
 
     else:
@@ -457,7 +476,6 @@ def add_to_stocks_list(listbox, stock_name, line1, limit_asker, currentPrice,use
     print("username at add: "+userName)	
     print("usermail at add: "+userMail)	
 
-
     line1.config(text="")
     already_follow_stock = 0
     follow_list = followSheet.findall(userMail)
@@ -567,29 +585,29 @@ logRegWindow.iconphoto(False, icon)
 logRegWindow.geometry('350x150')
 
 Label(logRegWindow, text='User Name: ', font=labelFont).grid(row=0, column=0)
-emailLabel = Label(logRegWindow, text='EMAIL: ', font=labelFont)
 Label(logRegWindow, text='Password: ', font=labelFont).grid(row=2, column=0)
-repeatPasswordLabel = Label(logRegWindow, text='Reapet password: ', font=labelFont)
-codeLabel = Label(logRegWindow, text='Confirmation code: ', font=labelFont)
 
 userNameEntry = Entry(logRegWindow, width=28)
-userMailEntry = Entry(logRegWindow, width=28)
 passwordEntry = Entry(logRegWindow, show="*", width=28)
-reapetPasswordEntry = Entry(logRegWindow, show="*", width=28)
-confirmationCode = Entry(logRegWindow, width=28)
 
-randomForConfirmaionMail = int((random.random()) * 1000000)
-sendCodeButton = Button(logRegWindow, text='Send code', font=("David", 11), width=7, height=1,
-                        command=lambda: send_confirmation_code(randomForConfirmaionMail))
+# randomForConfirmaionMail = int((random.random()) * 1000000)
+# sendCodeButton = Button(logRegWindow, text='Send code', font=("David", 11), width=7, height=1,
+#                         command=lambda: send_confirmation_code(randomForConfirmaionMail))
 
 userNameEntry.grid(row=0, column=1)
 passwordEntry.grid(row=2, column=1)
 
-registerButton = Button(logRegWindow, text='Registration', command=RegistrationSelected,
-                        background=buttonGrayBackground)
-registerButton.grid(row=5, column=1)
+
+# def register(user_name_to_check,user_mail_to_check,password_to_check,repeat_password_to_check):
+
+
 
 loginButton = Button(logRegWindow, text='Login', command=lambda: login(str(userNameEntry.get()),str(passwordEntry.get())), background=buttonGrayBackground)
+# global registerButton
+registerButton = Button(logRegWindow, text='Registration', 
+	command=lambda: RegistrationSelected(logRegWindow,userNameEntry,passwordEntry),
+                        background=buttonGrayBackground)
+registerButton.grid(row=5, column=1)
 loginButton.grid(row=6, column=1)
 
 
