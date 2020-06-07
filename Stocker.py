@@ -65,7 +65,7 @@ def send_confirmation_code(userMail,randomForConfirmaionMail):
     randomForConfirmaionMail: the random number(between 0-100000) created for registration
 
     """
-    print(randomForConfirmaionMail)
+    # print(randomForConfirmaionMail)
     # userMail = userMailEntry.get()
     if ('@' not in userMail):
         create_pop_window('Error: wrong email', "You didn't entered a valid email\n", '330x120', 'Try again', "", "")
@@ -184,14 +184,16 @@ def try_register(logRegWindow,registerButton,userNameEntry,userMailEntry,passwor
     	confirmationCodeEntry.grid(row=4, column=1)
     	send_confirmation_code(user_mail_to_check,randomForConfirmaionMail)
     	# global registerButton
-    	registerButton.config(command=lambda: add_user_to_db( logRegWindow, user_name_to_check, user_mail_to_check, password_to_check,str(confirmationCodeEntry.get()),str(randomForConfirmaionMail)))
+    	registerButton.config(command=lambda: add_user_to_db( logRegWindow, registerButton,user_name_to_check, user_mail_to_check, password_to_check,str(confirmationCodeEntry.get()),str(randomForConfirmaionMail),userNameEntry,userMailEntry,passwordEntry,reapetPasswordEntry))
     	registerButton.config(text="Confirm")
 
-def add_user_to_db( logRegWindow, user_name_to_check, user_mail_to_check, password_to_check,user_confirmation_code,randomForConfirmaionMail_str):
+def add_user_to_db( logRegWindow,registerButton, user_name_to_check, user_mail_to_check, password_to_check,user_confirmation_code,randomForConfirmaionMail_str,userNameEntry,userMailEntry,passwordEntry,reapetPasswordEntry):
     if (user_confirmation_code != randomForConfirmaionMail_str):
         
         create_pop_window('Registration Error', "Wrong confirmation code, check your mail.\n", '370x110', "Try again", "", "")
     else:
+        registerButton.config(command=lambda: try_register(logRegWindow,registerButton,userNameEntry,userMailEntry,passwordEntry,reapetPasswordEntry))
+        registerButton.config(text="Register")
         usersSheet.append_row([user_name_to_check, user_mail_to_check, password_to_check])
         create_pop_window('Welcome aboard!', "Register successfully !", '360x120', "Close", 'Login', lambda: login(logRegWindow, user_name_to_check,password_to_check))
 
@@ -257,23 +259,23 @@ def main_window(userName,userMail):
     master.title('Strategy window')
 
     ### user deatails ###
-    user_details_frame = Frame(master, relief="groove")
+    user_details_frame = Frame(master, relief="solid")
     user_details_frame.grid(column=0, row=0, sticky=W)
     user_details_frame['bg'] = screenBackground
-    Label(user_details_frame, text='User Name :', relief="solid", font=labelFontBold, background=screenBackground).grid(
+    Label(user_details_frame, text='User Name :', relief="groove",width=12, font=labelFontBold, background=buttonGrayBackground).grid(
         column=0, row=0)
-    Label(user_details_frame, text='Email :', relief="solid", font=labelFontBold, background=screenBackground).grid(
+    Label(user_details_frame, text='Email :', relief="groove", width=12,font=labelFontBold, background=buttonGrayBackground).grid(
         column=0, row=1)
 
     # global userName
     # global userMail
-    userNameLabel = Label(user_details_frame, text=userName, font=labelFontBold, relief="solid",
-                          background=screenBackground).grid(column=1, row=0, padx=70)
-    userMailLabel = Label(user_details_frame, text=userMail, font=labelFontBold, relief="solid",
-                          background=screenBackground).grid(column=1, row=1, padx=70)
-    log_out_button = Button(user_details_frame, font=labelFont, text='log out', background=buttonGrayBackground,
+    userNameLabel = Label(user_details_frame, text=userName, font=labelFontBold, relief="groove",
+                          background=buttonGrayBackground).grid(column=1, row=0, padx=70)
+    userMailLabel = Label(user_details_frame, text=userMail, font=labelFontBold, relief="groove",
+                          background=buttonGrayBackground).grid(column=1, row=1, padx=70)
+    log_out_button = Button(user_details_frame, font=labelFont, text='log out', background=buttonGrayBackground,width=12,relief="groove",
                             command=lambda:[ ask_log_out(master,userName,userMail)]).grid(column=2, row=0)
-    sign_out_button = Button(user_details_frame, font=labelFont, text='sign out', background=buttonGrayBackground,
+    sign_out_button = Button(user_details_frame, font=labelFont, text='sign out', background=buttonGrayBackground,width=12,relief="groove",
                              command=lambda: [ ask_sign_out(master,userName,userMail)]).grid(column=2, row=1)
 
     ### stock details ###
@@ -353,12 +355,11 @@ def login(logRegWindow,user_name_to_check,password_to_check):
     else:
         global  logged_in
         logged_in = 1
-        print('LOGGED IN')
         logRegWindow.destroy()
         userName = user_name_to_check
         userMail = usersSheet.cell(usersSheet.find(user_name_to_check).row,
                                    usersSheet.find(user_name_to_check).col + 1).value
-        print(userMail + " user name: "+userName + " "+ user_name_to_check)
+        # print(userMail + " user name: "+userName + " "+ user_name_to_check)
         main_window(userName,userMail )
 
 
@@ -513,7 +514,7 @@ def add_to_stocks_list(listbox, stock_name, line1, limit_asker, currentPrice,use
         listbox.insert(END, stock_name + " --> " + limit)
 
 def ask_log_out(master,userName,userMail):
-    create_pop_window("Log out?", "Are you sure you want to log out?", '200x80', "No!", "Yes",lambda: log_out(master,userName,userMail) )
+    create_pop_window("Log out?", "Are you sure you want to log out?", '400x100', "No!", "Yes",lambda: log_out(master,userName,userMail) )
     
 def log_out(master,userName,userMail):
     global logged_in
@@ -522,7 +523,6 @@ def log_out(master,userName,userMail):
     start_log_reg_window()
 
 def sign_out(master,userName,userMail):
-    print("mail rrr ",userMail )
 
     global logged_in
     logged_in=0
@@ -538,8 +538,7 @@ def sign_out(master,userName,userMail):
 
 def ask_sign_out(master,userName,userMail):
 
-    print("mail in ask ",userMail )
-    create_pop_window("Sign out?", "Are you sure you want to sign out?", '200x80', "No!", "Yes",lambda: sign_out(master,userName,userMail) )
+    create_pop_window("Sign out?", "Are you sure you want to sign out?", '400x100', "No!", "Yes",lambda: sign_out(master,userName,userMail) )
     
 
 
@@ -559,9 +558,9 @@ def searchClicked(master,listbox,stock_name_to_search,userName,userMail):
     stock_name_and_price = getStockName(stock_name_to_search,1)
     stockName = stock_name_and_price[0:stock_name_and_price.rfind(' ') - 7]
     currentPrice = stock_name_and_price[stock_name_and_price.rfind(' ') + 1:len(stock_name_and_price)]
-    print(stock_name_and_price)
-    print(stockName)
-    print(currentPrice)
+    # print(stock_name_and_price)
+    # print(stockName)
+    # print(currentPrice)
 
     if (stockName == ""):
         create_pop_window("Error: Empty stock name", "You didn't entered the stock symbol right\n", "360x120",
