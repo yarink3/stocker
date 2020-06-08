@@ -12,7 +12,8 @@ from oauth2client.service_account import ServiceAccountCredentials
 import threading
 
 global logged_in
-
+global line1
+line1=""
 
 scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
 credentials = ServiceAccountCredentials.from_json_keyfile_name('stockgetter-02bc755504f9.json', scope)
@@ -237,7 +238,13 @@ def set_stocks_list(listbox,userMail):
         listbox.insert(END,
                        followSheet.cell(followed.row, followed.col + 1).value + " --> " + followSheet.cell(followed.row,
                                                                                                            followed.col + 2).value+'$')
-
+def blankline1():
+    try:
+        line1.config(text="")
+    except NameError:
+        print("line 1 wasnt defined")
+    else:
+        print("line 1 was deleted")
 
 def main_window(userName,userMail):
     """ A function used to create the main window of the software.
@@ -290,7 +297,7 @@ def main_window(userName,userMail):
     stockNameEntry.grid(column=1, row=0)
 
     search_button = Button(search_frame, text="search", font=labelFont, background="#00ff00",
-                           command=lambda: searchClicked(master,stocks_list,str(stockNameEntry.get()),userName,userMail)).grid(column=2, row=0, padx=30)
+                           command=lambda: [searchClicked(master,stocks_list,str(stockNameEntry.get()),userName,userMail)]).grid(column=2, row=0, padx=30)
 
     ### stock's list frame ###
 
@@ -316,7 +323,7 @@ def main_window(userName,userMail):
 
     scroll_bar.pack(side=RIGHT, fill=Y)
 
-    mainThread = threading.Thread(target=check_stocks,args=([userMail]), daemon=True)
+    mainThread = threading.Thread(target=check_stocks,args=([userMail,stocks_list]), daemon=True)
 
     mainThread.start()
 
@@ -389,7 +396,7 @@ def getStockName(stock_name_to_search,alsoGetPrice):
             cur_price_text = currentPrice.text
             return (stockName.text + " stock: " + cur_price_text[: cur_price_text.find('.') + 3])
 
-def send_stock_update_mail(stockName, limitPrice):
+def send_stock_update_mail(stockName, limitPrice,userMail):
     """ A function used to send an email to the user when one or more
     of his / her stocks got to his / her limit.
     
@@ -420,7 +427,7 @@ def send_stock_update_mail(stockName, limitPrice):
         print ('Something went wrong...')
 
 
-def check_stocks(userMail):
+def check_stocks(userMail,listbox):
     """ A function used to check if each stock from the user's
      list got to his/her limit price.
     Parameters
@@ -453,17 +460,28 @@ def check_stocks(userMail):
 
                 if (over == '1'):
                     if (float(currentPrice.text) <= float(limitPrice)):
-                        send_stock_update_mail(stockName, limitPrice)
+                        send_stock_update_mail(stockName, limitPrice,userMail)
                         followSheet.update_cell(followed.row, followed.col + 4, 'YES')
-
+                        for i in range(listbox.size() - 1, -1, -1):
+                            stock_name_to_check = listbox.get(i, i)[0]
+                            if (stock_name_to_check[0:stock_name_to_check.rfind(" --> ")] == stockName):
+                                listbox.delete(i, i)
+                                break
                 else:
                     if (float(currentPrice.text) >= float(limitPrice)):
-                        send_stock_update_mail(stockName, limitPrice)
+                        send_stock_update_mail(stockName, limitPrice,userMail)
                         followSheet.update_cell(followed.row, followed.col + 4, 'YES')
+                        for i in range(listbox.size() - 1, -1, -1):
+                            stock_name_to_check = listbox.get(i, i)[0]
+                            if (stock_name_to_check[0:stock_name_to_check.rfind(" --> ")] == stockName):
+                                listbox.delete(i, i)
+                                break
+
+
         time.sleep(60)
 
 
-def add_to_stocks_list(listbox, stock_name, line1, limit_asker, currentPrice,userName,userMail):
+def add_to_stocks_list(listbox, stock_name, limit_asker, currentPrice,userName,userMail):
     """ A function used to add the searched stock to the user's list.
     
     Parameters
@@ -478,7 +496,7 @@ def add_to_stocks_list(listbox, stock_name, line1, limit_asker, currentPrice,use
 	and the user's list a, if fails popups an error window. 
     """   
 
-
+    global line1
     line1.config(text="")
     already_follow_stock = 0
     follow_list = followSheet.findall(userMail)
@@ -554,7 +572,13 @@ def searchClicked(master,listbox,stock_name_to_search,userName,userMail):
     listbox: The stocks list of the user.
  	stock_name_to_search: The stock's name entered by the user.
     """
-
+    global line1
+    if(isinstance(line1, str)==False):
+       line1.config(text="")
+    # except NameError:
+    #    print("well, it WASN'T defined after all!")
+ 
+    print("sure, it was defined.")
     stock_name_and_price = getStockName(stock_name_to_search,1)
     stockName = stock_name_and_price[0:stock_name_and_price.rfind(' ') - 7]
     currentPrice = stock_name_and_price[stock_name_and_price.rfind(' ') + 1:len(stock_name_and_price)]
@@ -583,12 +607,13 @@ def searchClicked(master,listbox,stock_name_to_search,userName,userMail):
                       text='Let me now when it is under / over: (e.g. 12.34) ', background=screenBackground)
         line2.grid(row=0, column=0)
 
+
         limitAsker = Entry(stock_deatail_frame_limit_asker)
         limitAsker.grid(row=0, column=1)
 
         b3 = Button(stock_deatail_frame_limit_asker, font=labelFont, text='Add to my follow list', height=0,
                     background="#00ff00",
-                    command=lambda: add_to_stocks_list(listbox, stockName, line1, limitAsker, float(currentPrice),userName,userMail))
+                    command=lambda: add_to_stocks_list(listbox, stockName, limitAsker, float(currentPrice),userName,userMail))
         b3.grid(row=0, column=2, padx=6)
 
 
