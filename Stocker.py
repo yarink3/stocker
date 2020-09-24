@@ -10,6 +10,13 @@ import random
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import threading
+import os
+import re
+
+
+# los.system('sudo apt install python3-pip')
+# os.system('pip3 install lxml')
+# os.system('pip3 install gspread')
 
 global logged_in
 global line1
@@ -56,6 +63,28 @@ def create_pop_window(title, message, size, button1_text, button2_text, button2_
         b2.pack()
     b1 = Button(pop_window, text=button1_text, command=pop_window.destroy)
     b1.pack()
+
+def start_timer(user_name_to_check,user_mail_to_check,password_to_check):
+	usersSheet.append_row([user_name_to_check, user_mail_to_check, password_to_check,"NO"])
+	time.sleep(60)
+
+	userCell=usersSheet.find(user_mail_to_check)
+    
+
+	if(usersSheet.cell(userCell.row , userCell.col+2 ).value == "NO"):
+		usersSheet.delete_rows(userCell.row)
+		print("user deleted")
+		create_pop_window("Email was not verified", "You didn't verified your email whitin 60 seconds, try again\n", "460x120", "Try again",
+                          "", "")
+	else:
+		print("got to the else")
+
+
+
+
+
+
+
 
 
 def send_confirmation_code(userMail,randomForConfirmaionMail):
@@ -130,9 +159,10 @@ def try_register(logRegWindow,registerButton,userNameEntry,userMailEntry,passwor
     nameOk = 1
     user_name_to_check = userNameEntry.get()
     user_mail_to_check = userMailEntry.get()
-
     password_to_check = passwordEntry.get()
     repeat_password_to_check = reapetPasswordEntry.get()
+
+   
     print(randomForConfirmaionMail)
 
 
@@ -187,6 +217,10 @@ def try_register(logRegWindow,registerButton,userNameEntry,userMailEntry,passwor
     	# global registerButton
     	registerButton.config(command=lambda: add_user_to_db( logRegWindow, registerButton,user_name_to_check, user_mail_to_check, password_to_check,str(confirmationCodeEntry.get()),str(randomForConfirmaionMail),userNameEntry,userMailEntry,passwordEntry,reapetPasswordEntry))
     	registerButton.config(text="Confirm")
+    	varificationThread = threading.Thread(target=start_timer,args=([user_name_to_check,user_mail_to_check,password_to_check]), daemon=True)
+
+    	varificationThread.start()
+
 
 def add_user_to_db( logRegWindow,registerButton, user_name_to_check, user_mail_to_check, password_to_check,user_confirmation_code,randomForConfirmaionMail_str,userNameEntry,userMailEntry,passwordEntry,reapetPasswordEntry):
     if (user_confirmation_code != randomForConfirmaionMail_str):
@@ -195,7 +229,9 @@ def add_user_to_db( logRegWindow,registerButton, user_name_to_check, user_mail_t
     else:
         registerButton.config(command=lambda: try_register(logRegWindow,registerButton,userNameEntry,userMailEntry,passwordEntry,reapetPasswordEntry))
         registerButton.config(text="Register")
-        usersSheet.append_row([user_name_to_check, user_mail_to_check, password_to_check])
+        # usersSheet.append_row([user_name_to_check, user_mail_to_check, password_to_check,""])
+        userCell=usersSheet.find(user_name_to_check)
+        usersSheet.update_cell(userCell.row, userCell.col + 3, 'YES')
         create_pop_window('Welcome aboard!', "Register successfully !", '360x120', "Close", 'Login', lambda: login(logRegWindow, user_name_to_check,password_to_check))
 
 
@@ -235,16 +271,11 @@ def set_stocks_list(listbox,userMail):
 	"""
     follow_list = followSheet.findall(userMail)
     for followed in follow_list:
+     if(followSheet.cell(followed.row, followed.col + 4).value == "NO"):	
         listbox.insert(END,
                        followSheet.cell(followed.row, followed.col + 1).value + " --> " + followSheet.cell(followed.row,
-                                                                                                           followed.col + 2).value+'$')
-def blankline1():
-    try:
-        line1.config(text="")
-    except NameError:
-        print("line 1 wasnt defined")
-    else:
-        print("line 1 was deleted")
+                                                                                                           followed.col + 2).value)
+
 
 def main_window(userName,userMail):
     """ A function used to create the main window of the software.
@@ -459,7 +490,7 @@ def check_stocks(userMail,listbox):
                 currentPrice = soup.find('td', attrs={"data-reactid": "59"})  # 59+8*n
 
                 if (over == '1'):
-                    if (float(currentPrice.text) <= float(limitPrice)):
+                    if (float(without_comma(currentPrice.text)) <= float(limitPrice)):
                         send_stock_update_mail(stockName, limitPrice,userMail)
                         followSheet.update_cell(followed.row, followed.col + 4, 'YES')
                         for i in range(listbox.size() - 1, -1, -1):
@@ -468,7 +499,7 @@ def check_stocks(userMail,listbox):
                                 listbox.delete(i, i)
                                 break
                 else:
-                    if (float(currentPrice.text) >= float(limitPrice)):
+                    if (float(without_comma (currentPrice.text)) >= float(limitPrice)):
                         send_stock_update_mail(stockName, limitPrice,userMail)
                         followSheet.update_cell(followed.row, followed.col + 4, 'YES')
                         for i in range(listbox.size() - 1, -1, -1):
@@ -503,7 +534,7 @@ def add_to_stocks_list(listbox, stock_name, limit_asker, currentPrice,userName,u
     over = '0'
     limit = str(limit_asker.get())
     try:
-        float(limit)
+        float(without_comma(limit))
     except ValueError:
         create_pop_window("Error: Wrong price input", "You didn't entered your price right\n", "360x120", "Try again",
                           "", "")
@@ -514,14 +545,14 @@ def add_to_stocks_list(listbox, stock_name, limit_asker, currentPrice,userName,u
             over = '1'
 
         for followed in follow_list:
-            if (followSheet.cell(followed.row, followed.col + 1).value == stock_name):
-                create_pop_window("Already follow", "Already follow,this stock, now using new price limit\n", "450x100",
-                                  "Close", "", "")
+            if (followSheet.cell(followed.row, followed.col + 1).value == stock_name ):
+                
+                if(followSheet.cell(followed.row, followed.col + 4).value=="NO" ):
+                	create_pop_window("Already follow", "Already follow,this stock, now using new price limit\n", "450x100","Close", "", "")
                 already_follow_stock = 1
                 followSheet.update_cell(followed.row, followed.col + 2, limit)
                 followSheet.update_cell(followed.row, followed.col + 3, over)
                 followSheet.update_cell(followed.row, followed.col + 4, 'NO')
-
         if (already_follow_stock == 0):
             followSheet.append_row([userName, userMail, stock_name, str(limit), over, 'NO'])
             # create_pop_window("Stock added", stock_name + " added to your follow list\n", "400x100", "Close", "", "")
@@ -559,6 +590,9 @@ def ask_sign_out(master,userName,userMail):
     create_pop_window("Sign out?", "Are you sure you want to sign out?", '400x100', "No!", "Yes",lambda: sign_out(master,userName,userMail) )
     
 
+def without_comma(input):
+	output = re.sub('[,]', '', input)
+	return (output)
 
 def searchClicked(master,listbox,stock_name_to_search,userName,userMail):
 
@@ -575,10 +609,7 @@ def searchClicked(master,listbox,stock_name_to_search,userName,userMail):
     global line1
     if(isinstance(line1, str)==False):
        line1.config(text="")
-    # except NameError:
-    #    print("well, it WASN'T defined after all!")
- 
-    print("sure, it was defined.")
+
     stock_name_and_price = getStockName(stock_name_to_search,1)
     stockName = stock_name_and_price[0:stock_name_and_price.rfind(' ') - 7]
     currentPrice = stock_name_and_price[stock_name_and_price.rfind(' ') + 1:len(stock_name_and_price)]
@@ -613,7 +644,7 @@ def searchClicked(master,listbox,stock_name_to_search,userName,userMail):
 
         b3 = Button(stock_deatail_frame_limit_asker, font=labelFont, text='Add to my follow list', height=0,
                     background="#00ff00",
-                    command=lambda: add_to_stocks_list(listbox, stockName, limitAsker, float(currentPrice),userName,userMail))
+                    command=lambda: add_to_stocks_list(listbox, stockName, limitAsker, float(without_comma(currentPrice)),userName,userMail))
         b3.grid(row=0, column=2, padx=6)
 
 
@@ -623,7 +654,7 @@ def searchClicked(master,listbox,stock_name_to_search,userName,userMail):
 def start_log_reg_window():    
     logRegWindow = Tk()
     logRegWindow.resizable(0, 0)
-    logRegWindow.title('Stock Updater - Wellcome')
+    logRegWindow.title('Stocker - Wellcome')
     icon = PhotoImage(file='icon.png')
     logRegWindow.iconphoto(False, icon)
     logRegWindow.geometry('350x150')
@@ -658,5 +689,31 @@ def start_log_reg_window():
 
     logRegWindow.mainloop()
 
+# from Window import Window
+
 if(__name__ == "__main__"):
     start_log_reg_window()
+ #    # y=Tk()
+ #    # y.mainloop()
+
+ #    x=Window("Stocker - Welcome!",{})
+ #    x.startTk()
+ #    # dictionary={"one" : 1, "two": 2}
+ #    x.use_icon()
+ #    dictionary2={"userNameLabel":Label(x, text='User Name: ', font=labelFont),
+	# 	"userNameEntry" : Entry(x, width=28),
+	# 	"emailLabel" : Label(x, text='EMAIL: ', font=labelFont),
+	# 	"userMailEntry": Entry(x, width=28),
+	# 	"passwordLabel": Label(x, text='Password: ', font=labelFont),
+	# 	"passwordEntry" : Entry(x, show="*", width=28),
+	# 	"repeatPasswordLabel" : Label(x, text='Reapet password: ', font=labelFont),
+	# 	"reapetPasswordEntry" : Entry(x, show="*", width=28),
+	# 	"confirmationCodeLabel" : Label(x, text='Confirmation code: ', font=labelFont),
+	# 	"confirmationCodeEntry" : Entry(x, width=28),
+	# 	"registerButton" : Button(x, text='Registration',command=lambda: RegistrationSelected(x,registerButton,userNameEntry,passwordEntry),background=buttonGrayBackground),
+	# 	"loginButton" : Button(x, text='Login', command=lambda: login(x, str(userNameEntry.get()),str(passwordEntry.get())), background=buttonGrayBackground)}
+	# # x.dictionary=dictionary2
+
+
+
+	
