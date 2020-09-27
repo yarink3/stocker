@@ -13,6 +13,7 @@ import threading
 import os
 import re
 
+from pymongo import MongoClient
 
 # los.system('sudo apt install python3-pip')
 # os.system('pip3 install lxml')
@@ -22,12 +23,21 @@ global logged_in
 global line1
 line1=""
 
-scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-credentials = ServiceAccountCredentials.from_json_keyfile_name('stockgetter-02bc755504f9.json', scope)
-gc = gspread.authorize(credentials)
 
-usersSheet = gc.open('StockGetter').sheet1
-followSheet = gc.open('StockGetter-Follow').sheet1
+##### Database connecrion #####
+# scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+# credentials = ServiceAccountCredentials.from_json_keyfile_name('stockgetter-02bc755504f9.json', scope)
+# gc = gspread.authorize(credentials)
+
+# usersSheet = gc.open('StockGetter').sheet1
+# followSheet = gc.open('StockGetter-Follow').sheet1
+
+client=MongoClient("mongodb+srv://db_user:4713@cluster0.x4gf7.mongodb.net/Stocker?retryWrites=true&w=majority")
+db=client.get_database('Stocker')
+Users=db.Users
+Followers=db.Followers
+
+###############################
 
 stockName = ""
 limitPrice = 0
@@ -42,6 +52,8 @@ labelFontBold = ('David', 16, 'bold')
 logged_in = 0
 userName = ""
 userMail = ""
+
+
 
 # logRegWindow=""
 # registerButton=""
@@ -65,26 +77,30 @@ def create_pop_window(title, message, size, button1_text, button2_text, button2_
     b1.pack()
 
 def start_timer(user_name_to_check,user_mail_to_check,password_to_check):
-	usersSheet.append_row([user_name_to_check, user_mail_to_check, password_to_check,"NO"])
-	time.sleep(60)
+	# usersSheet.append_row([user_name_to_check, user_mail_to_check, password_to_check,"NO"])
+    Users.insert_one({'Username':user_name_to_check , 'Mail':user_mail_to_check,'Password':password_to_check,'Verified':"NO"})
+    time.sleep(60)
 
-	userCell=usersSheet.find(user_mail_to_check)
+	# userCell=usersSheet.find(user_mail_to_check)
+    userDocument= Users.find_one({'Username':user_mail_to_check})
+
     
 
-	if(usersSheet.cell(userCell.row , userCell.col+2 ).value == "NO"):
-		usersSheet.delete_rows(userCell.row)
-		print("user deleted")
-		create_pop_window("Email was not verified", "You didn't verified your email whitin 60 seconds, try again\n", "460x120", "Try again",
+	# if(usersSheet.cell(userCell.row , userCell.col+2 ).value == "NO"):
+	# 	usersSheet.delete_rows(userCell.row)
+	# 	print("user deleted")
+	# 	create_pop_window("Email was not verified", "You didn't verified your email whitin 60 seconds, try again\n", "460x120", "Try again",
+ #                          "", "")
+	# else:
+	# 	print("got to the else")
+
+    if(userDocument['Verified'] == "NO"):
+        Users.delete_one(userDocument)
+        print("user deleted")
+        create_pop_window("Email was not verified", "You didn't verified your email whitin 60 seconds, try again\n", "460x120", "Try again",
                           "", "")
-	else:
-		print("got to the else")
-
-
-
-
-
-
-
+    else:
+        print("got to the else")
 
 
 def send_confirmation_code(userMail,randomForConfirmaionMail):
@@ -170,22 +186,28 @@ def try_register(logRegWindow,registerButton,userNameEntry,userMailEntry,passwor
     errorMsg = "Somthing went wrong:"
     mistake_counter=0
 
-    list_of_cells_with_same_username = usersSheet.findall(user_name_to_check)
-    for cell in list_of_cells_with_same_username:
-        if (cell.col == 1):
-            nameOk = 0
-            break
+
+    # list_of_cells_with_same_username = usersSheet.findall(user_name_to_check)
+    # for cell in list_of_cells_with_same_username:
+    #     if (cell.col == 1):
+    #         nameOk = 0
+    #         break
+    if(Users.count_documents({'Username':user_name_to_check})>0):
+        nameOk = 0
 
     if (nameOk == 0):
         can_register = 0
         errorMsg = errorMsg + "\nUser name already taken"
         mistake_counter=mistake_counter+1
 
-    list_of_cells_with_same_mail = usersSheet.findall(user_mail_to_check)
-    for cell in list_of_cells_with_same_mail:
-        if cell.col == 2:
-            mailOk = 0
-            break
+    # list_of_cells_with_same_mail = usersSheet.findall(user_mail_to_check)
+    # for cell in list_of_cells_with_same_mail:
+    #     if cell.col == 2:
+    #         mailOk = 0
+    #         break
+
+    if(Users.count_documents({'Mail':user_mail_to_check})>0):
+        mailOk = 0 
 
     if (mailOk == 0):
         can_register = 0
@@ -229,9 +251,14 @@ def add_user_to_db( logRegWindow,registerButton, user_name_to_check, user_mail_t
     else:
         registerButton.config(command=lambda: try_register(logRegWindow,registerButton,userNameEntry,userMailEntry,passwordEntry,reapetPasswordEntry))
         registerButton.config(text="Register")
-        # usersSheet.append_row([user_name_to_check, user_mail_to_check, password_to_check,""])
-        userCell=usersSheet.find(user_name_to_check)
-        usersSheet.update_cell(userCell.row, userCell.col + 3, 'YES')
+        # # usersSheet.append_row([user_name_to_check, user_mail_to_check, password_to_check,""])
+        # userCell=usersSheet.find(user_name_to_check)
+        # usersSheet.update_cell(userCell.row, userCell.col + 3, 'YES')
+        
+        verify_update={'Verified':"YES"}
+        Users.update_one({'Username':user_name_to_check},{'$set':verify_update})
+
+
         create_pop_window('Welcome aboard!', "Register successfully !", '360x120', "Close", 'Login', lambda: login(logRegWindow, user_name_to_check,password_to_check))
 
 
@@ -243,21 +270,37 @@ def delete_selected_stocks(listbox,userMail):
 	  """
     stopped = ""
     counter=0
-    follow_list = followSheet.findall(userMail)
+    # follow_list = followSheet.findall(userMail)
+    # follow_list=list(Followers.find_one('Mail':userMail))
+
     selected = listbox.curselection()
+
     for index in selected[::-1]:
-        for followed in follow_list:
-            stock_to_delete_from_sheet = followSheet.cell(followed.row, followed.col + 1).value
-            stock_to_delete_from_list = listbox.get(index, index)[0]
-            stock_to_delete_from_list = stock_to_delete_from_list[0:stock_to_delete_from_list.rfind(" --> ")]
-            if (stock_to_delete_from_sheet == stock_to_delete_from_list):
-                stopped = stopped + "\n" + stock_to_delete_from_sheet
-                followSheet.delete_rows(followed.row)
-                listbox.delete(index)
-                # print(stock_to_delete_from_sheet)
-                # print(stock_to_delete_from_list)
-                counter=counter+1
-                break
+        stock_to_delete_from_list = listbox.get(index, index)[0]
+        stock_to_delete_from_list = stock_to_delete_from_list[0:stock_to_delete_from_list.rfind(" --> ")]
+        listbox.delete(index)
+        Followers.delete_one({'Mail':userMail, 'Stock': stock_to_delete_from_list })
+
+
+
+
+
+
+
+    # for index in selected[::-1]:
+    #     for followed in follow_list:
+    #         stock_to_delete_from_sheet = followSheet.cell(followed.row, followed.col + 1).value
+    #         stock_to_delete_from_list = listbox.get(index, index)[0]
+    #         stock_to_delete_from_list = stock_to_delete_from_list[0:stock_to_delete_from_list.rfind(" --> ")]
+    #         if (stock_to_delete_from_sheet == stock_to_delete_from_list):
+    #             stopped = stopped + "\n" + stock_to_delete_from_sheet
+    #             followSheet.delete_rows(followed.row)
+    #             listbox.delete(index)
+    #             # print(stock_to_delete_from_sheet)
+    #             # print(stock_to_delete_from_list)
+    #             counter=counter+1
+    #             break
+
     # if (stopped != ""):
     #     create_pop_window("Stop scanning", "You stopped scanning " + stopped + "\n", '420x'+str(counter*40+55), "Close", "", "")
 
@@ -269,12 +312,16 @@ def set_stocks_list(listbox,userMail):
     ----------
 	listbox: the stocks list shown to the user
 	"""
-    follow_list = followSheet.findall(userMail)
-    for followed in follow_list:
-     if(followSheet.cell(followed.row, followed.col + 4).value == "NO"):	
-        listbox.insert(END,
-                       followSheet.cell(followed.row, followed.col + 1).value + " --> " + followSheet.cell(followed.row,
-                                                                                                           followed.col + 2).value)
+    # follow_list = followSheet.findall(userMail)
+    # for followed in follow_list:
+    #  if(followSheet.cell(followed.row, followed.col + 4).value == "NO"):	
+    #     listbox.insert(END,
+    #                    followSheet.cell(followed.row, followed.col + 1).value + " --> " + followSheet.cell(followed.row,followed.col + 2).value)
+    
+    follow_list=list(Followers.find({'Mail':userMail,'Sent':"NO"}))
+    for i in range (len(follow_list)):
+        stockDocument=follow_list[i]
+        listbox.insert(END,stockDocument['Stock']+ " --> " + str(stockDocument['Price']))                                                                                              
 
 
 def main_window(userName,userMail):
@@ -373,17 +420,25 @@ def login(logRegWindow,user_name_to_check,password_to_check):
     can_login = 1
     errorMsg = ""
 
-    list_of_cells_with_same_username = usersSheet.findall(user_name_to_check)
-    for cell in list_of_cells_with_same_username:
-        if cell.col == 1:
-            nameOk = 1
+    if(Users.count_documents({'Username':user_name_to_check})==1):
+        nameOk=1
+
+    # list_of_cells_with_same_username = usersSheet.findall(user_name_to_check)
+    # for cell in list_of_cells_with_same_username:
+    #     if cell.col == 1:
+    #         nameOk = 1
 
     if (nameOk == 0):
         can_login = 0
         errorMsg = errorMsg + "Something Went wrong, check username and password"
-    if nameOk == 1 and str(password_to_check) != str(usersSheet.cell(usersSheet.find(user_name_to_check).row,
-                                                                     usersSheet.find(
-                                                                             user_name_to_check).col + 2).value):
+
+
+    if(nameOk == 1 and (Users.find_one({'Username':user_name_to_check,'Password':password_to_check})==None) ): 
+
+    # if nameOk == 1 and str(password_to_check) != str(usersSheet.cell(usersSheet.find(user_name_to_check).row,
+    #                                                                  usersSheet.find(
+    #                                                                          user_name_to_check).col + 2).value):
+        print("hey")
         can_login = 0
         errorMsg = errorMsg + "Something Went wrong, check username and password"
     if (can_login == 0):
@@ -395,9 +450,11 @@ def login(logRegWindow,user_name_to_check,password_to_check):
         logged_in = 1
         logRegWindow.destroy()
         userName = user_name_to_check
-        userMail = usersSheet.cell(usersSheet.find(user_name_to_check).row,
-                                   usersSheet.find(user_name_to_check).col + 1).value
-        # print(userMail + " user name: "+userName + " "+ user_name_to_check)
+        # userMail = usersSheet.cell(usersSheet.find(user_name_to_check).row,
+        #                            usersSheet.find(user_name_to_check).col + 1).value
+        userMail=Users.find_one({'Username':user_name_to_check})['Mail']
+        
+
         main_window(userName,userMail )
 
 
@@ -470,43 +527,47 @@ def check_stocks(userMail,listbox):
     """
     global logged_in
     while (logged_in==1):
-        follow_list = followSheet.findall(userMail)
+        # follow_list = followSheet.findall(userMail)
+
+        stocks_to_check=list(Followers.find({'Mail':userMail,'Sent':"NO" }))
         # print(len(follow_list))
+        for followed in stocks_to_check:
+            stockName = followed['Stock']
+            # print(stockName)
+            limitPrice = followed['Price']
+            # print(limitPrice)
 
-        for followed in follow_list:
-            sent = followSheet.cell(followed.row, followed.col + 4).value
-            if (sent == 'NO'):
-                stockName = followSheet.cell(followed.row, followed.col + 1).value
-                # print(stockName)
+            over = followed['Over']
+            url = "https://finance.yahoo.com/lookup?s={}".format(stockName)
+            source = requests.get(url).text
+            soup = BeautifulSoup(source, 'lxml')
+            currentPrice = soup.find('td', attrs={"data-reactid": "59"})  # 59+8*n
+            sent_update=({'Sent':"YES"})
 
-                limitPrice = followSheet.cell(followed.row, followed.col + 2).value
-                # print(limitPrice)
+            if (over == '1'):
+                if (float(without_comma(currentPrice.text)) <= float(limitPrice)):
+                    send_stock_update_mail(stockName, limitPrice,userMail)
 
-                over = followSheet.cell(followed.row, followed.col + 3).value
+                    # followSheet.update_cell(followed.row, followed.col + 4, 'YES')
+                    Followers.update_one({'Username':followed['Username'], 'Stock':followed['Stock']},{'$set':sent_update})
 
-                url = "https://finance.yahoo.com/lookup?s={}".format(stockName)
-                source = requests.get(url).text
-                soup = BeautifulSoup(source, 'lxml')
-                currentPrice = soup.find('td', attrs={"data-reactid": "59"})  # 59+8*n
+                    for i in range(listbox.size() - 1, -1, -1):
+                        stock_name_to_check = listbox.get(i, i)[0]
+                        if (stock_name_to_check[0:stock_name_to_check.rfind(" --> ")] == stockName):
+                            listbox.delete(i, i)
+                            break
+            else:
+                if (float(without_comma (currentPrice.text)) >= float(limitPrice)):
+                    send_stock_update_mail(stockName, limitPrice,userMail)
 
-                if (over == '1'):
-                    if (float(without_comma(currentPrice.text)) <= float(limitPrice)):
-                        send_stock_update_mail(stockName, limitPrice,userMail)
-                        followSheet.update_cell(followed.row, followed.col + 4, 'YES')
-                        for i in range(listbox.size() - 1, -1, -1):
-                            stock_name_to_check = listbox.get(i, i)[0]
-                            if (stock_name_to_check[0:stock_name_to_check.rfind(" --> ")] == stockName):
-                                listbox.delete(i, i)
-                                break
-                else:
-                    if (float(without_comma (currentPrice.text)) >= float(limitPrice)):
-                        send_stock_update_mail(stockName, limitPrice,userMail)
-                        followSheet.update_cell(followed.row, followed.col + 4, 'YES')
-                        for i in range(listbox.size() - 1, -1, -1):
-                            stock_name_to_check = listbox.get(i, i)[0]
-                            if (stock_name_to_check[0:stock_name_to_check.rfind(" --> ")] == stockName):
-                                listbox.delete(i, i)
-                                break
+                    # followSheet.update_cell(followed.row, followed.col + 4, 'YES')
+                    Followers.update_one({'Username':followed['Username'], 'Stock':followed['Stock']},{'$set':sent_update})
+
+                    for i in range(listbox.size() - 1, -1, -1):
+                        stock_name_to_check = listbox.get(i, i)[0]
+                        if (stock_name_to_check[0:stock_name_to_check.rfind(" --> ")] == stockName):
+                            listbox.delete(i, i)
+                            break
 
 
         time.sleep(60)
@@ -530,7 +591,10 @@ def add_to_stocks_list(listbox, stock_name, limit_asker, currentPrice,userName,u
     global line1
     line1.config(text="")
     already_follow_stock = 0
-    follow_list = followSheet.findall(userMail)
+
+    # follow_list = followSheet.findall(userMail)
+    # follow_list=list(Followers.find({'Mail':userMail}))
+
     over = '0'
     limit = str(limit_asker.get())
     try:
@@ -544,17 +608,32 @@ def add_to_stocks_list(listbox, stock_name, limit_asker, currentPrice,userName,u
         if (currentPrice > float(limit)):
             over = '1'
 
-        for followed in follow_list:
-            if (followSheet.cell(followed.row, followed.col + 1).value == stock_name ):
+        update=({'Username':userName,'Mail':userMail ,'Stock':stock_name, 'Price':limit,'Over':over, 'Sent':"NO"})
+# Followers.update_one({'Username':followed['Username'], 'Stock':followed['Stock']},{$'set':update})
+
+
+        
+        document=Followers.find_one({'Username':userName,'Stock':stock_name})            
+        if(document!=None):    
+            if(document['Sent'] == "NO"):
+                create_pop_window("Already follow", "Already follow,this stock, now using new price limit\n", "450x100","Close", "", "")
+
+            Followers.update_one(document,{'$set':update})
+
+
+
+        # for followed in follow_list:
+        #     if (followSheet.cell(followed.row, followed.col + 1).value == stock_name ):
                 
-                if(followSheet.cell(followed.row, followed.col + 4).value=="NO" ):
-                	create_pop_window("Already follow", "Already follow,this stock, now using new price limit\n", "450x100","Close", "", "")
-                already_follow_stock = 1
-                followSheet.update_cell(followed.row, followed.col + 2, limit)
-                followSheet.update_cell(followed.row, followed.col + 3, over)
-                followSheet.update_cell(followed.row, followed.col + 4, 'NO')
-        if (already_follow_stock == 0):
-            followSheet.append_row([userName, userMail, stock_name, str(limit), over, 'NO'])
+        #         if(followSheet.cell(followed.row, followed.col + 4).value=="NO" ):
+        #         	create_pop_window("Already follow", "Already follow,this stock, now using new price limit\n", "450x100","Close", "", "")
+        #         already_follow_stock = 1
+        #         followSheet.update_cell(followed.row, followed.col + 2, limit)
+        #         followSheet.update_cell(followed.row, followed.col + 3, over)
+        #         followSheet.update_cell(followed.row, followed.col + 4, 'NO')
+        else:
+            # followSheet.append_row([userName, userMail, stock_name, str(limit), over, 'NO'])
+            Followers.insert_one(update)
             # create_pop_window("Stock added", stock_name + " added to your follow list\n", "400x100", "Close", "", "")
         for i in range(listbox.size() - 1, -1, -1):
             stock_name_to_check = listbox.get(i, i)[0]
@@ -575,13 +654,22 @@ def sign_out(master,userName,userMail):
 
     global logged_in
     logged_in=0
-    stocks= followSheet.findall(userMail)
-    user=usersSheet.find(userMail)
-    usersSheet.delete_rows(user.row)
-    rows_to_delete=[]
-    for stock in stocks:
-        # rows_to_delete.append(stock.row)
-        followSheet.delete_rows(stock.row)
+
+    # stocks= followSheet.findall(userMail)
+    # user=usersSheet.find(userMail)
+    # usersSheet.delete_rows(user.row)
+
+    # rows_to_delete=[]
+    # for stock in stocks:
+    #     # rows_to_delete.append(stock.row)
+    #     followSheet.delete_rows(stock.row)
+
+    Users.delete_one({'Username':userName})
+    Followers.delete_many({'Username':userName,'Sent':"NO"})
+
+
+
+
     master.destroy()    
     start_log_reg_window()
 
