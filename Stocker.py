@@ -7,12 +7,12 @@ import time
 from datetime import datetime, timedelta
 from email.mime.text import MIMEText
 import random
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+# import gspread
+# from oauth2client.service_account import ServiceAccountCredentials
 import threading
 import os
 import re
-
+import hashlib, binascii
 from pymongo import MongoClient
 
 # los.system('sudo apt install python3-pip')
@@ -33,6 +33,7 @@ line1=""
 # followSheet = gc.open('StockGetter-Follow').sheet1
 
 client=MongoClient("mongodb+srv://db_user:4713@cluster0.x4gf7.mongodb.net/Stocker?retryWrites=true&w=majority")
+# client=MongoClient("mongodb+srv://db_user:4713@cluster0.x4gf7.mongodb.net/Stocker?retryWrites=true&w=majority")
 db=client.get_database('Stocker')
 Users=db.Users
 Followers=db.Followers
@@ -58,6 +59,28 @@ userMail = ""
 # logRegWindow=""
 # registerButton=""
 
+######### security ###########
+def hash_password(password):
+    """Hash a password for storing."""
+    salt = hashlib.sha256(os.urandom(60)).hexdigest().encode('ascii')
+    pwdhash = hashlib.pbkdf2_hmac('sha512', password.encode('utf-8'), 
+                                salt, 100000)
+    pwdhash = binascii.hexlify(pwdhash)
+    return (salt + pwdhash).decode('ascii')
+ 
+def verify_password(stored_password, provided_password):
+    """Verify a stored password against one provided by user"""
+    salt = stored_password[:64]
+    stored_password = stored_password[64:]
+    pwdhash = hashlib.pbkdf2_hmac('sha512', 
+                                  provided_password.encode('utf-8'), 
+                                  salt.encode('ascii'), 
+                                  100000)
+    pwdhash = binascii.hexlify(pwdhash).decode('ascii')
+    return pwdhash == stored_password
+
+####################
+
 
 def create_pop_window(title, message, size, button1_text, button2_text, button2_func):
     """A function that creates generic pop-up window, with the corresponding fields:
@@ -78,7 +101,7 @@ def create_pop_window(title, message, size, button1_text, button2_text, button2_
 
 def start_timer(user_name_to_check,user_mail_to_check,password_to_check):
 	# usersSheet.append_row([user_name_to_check, user_mail_to_check, password_to_check,"NO"])
-    Users.insert_one({'Username':user_name_to_check , 'Mail':user_mail_to_check,'Password':password_to_check,'Verified':"NO"})
+    Users.insert_one({'Username':user_name_to_check , 'Mail':user_mail_to_check,'Password': hash_password(password_to_check),'Verified':"NO"})
     time.sleep(60)
 
 	# userCell=usersSheet.find(user_mail_to_check)
@@ -433,7 +456,7 @@ def login(logRegWindow,user_name_to_check,password_to_check):
         errorMsg = errorMsg + "Something Went wrong, check username and password"
 
 
-    if(nameOk == 1 and (Users.find_one({'Username':user_name_to_check,'Password':password_to_check})==None) ): 
+    if(nameOk == 1 and verify_password(Users.find_one({'Username':user_name_to_check})['Password'],password_to_check)==False) : 
 
     # if nameOk == 1 and str(password_to_check) != str(usersSheet.cell(usersSheet.find(user_name_to_check).row,
     #                                                                  usersSheet.find(
